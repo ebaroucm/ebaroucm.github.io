@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Respuesta oral — Práctica de Matemáticas</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 700px;
+      margin: 40px auto;
+      padding: 20px;
+      line-height: 1.5;
+      color: #222;
+    }
+    button {
+      padding: 12px 18px;
+      margin: 8px 5px 8px 0;
+      cursor: pointer;
+    }
+    #estado {
+      margin-top: 20px;
+      padding: 12px;
+      background: #f1f1f1;
+      border-radius: 6px;
+    }
+    #cronometro {
+      font-size: 1.5em;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>Respuesta oral</h1>
+
+  <p><strong>Pregunta:</strong></p>
+  <p>Decidir razonadamente si la siguiente afirmación es verdadera o falsa:</p>
+  <blockquote>
+    Si S es una matriz definida positiva, entonces S² es definida positiva.
+  </blockquote>
+
+  <p>Dispones de un máximo de tres minutos para responder.</p>
+
+  <button id="iniciar">Comenzar grabación</button>
+  <button id="detener" disabled>Terminar grabación</button>
+
+  <p id="cronometro">03:00</p>
+  <div id="estado">Pulsa «Comenzar grabación» cuando estés preparado.</div>
+
+  <script>
+    const iniciarBtn = document.getElementById("iniciar");
+    const detenerBtn = document.getElementById("detener");
+    const estado = document.getElementById("estado");
+    const cronometro = document.getElementById("cronometro");
+
+    let grabador = null;
+    let fragmentos = [];
+    let flujo = null;
+    let temporizador = null;
+    let segundosRestantes = 180;
+
+    function mostrarTiempo() {
+      const min = Math.floor(segundosRestantes / 60);
+      const seg = segundosRestantes % 60;
+      cronometro.textContent =
+        String(min).padStart(2, "0") + ":" +
+        String(seg).padStart(2, "0");
+    }
+
+    iniciarBtn.addEventListener("click", async () => {
+      iniciarBtn.disabled = true;
+      estado.textContent = "Solicitando permiso para usar el micrófono…";
+
+      try {
+        if (!navigator.mediaDevices ||
+            !navigator.mediaDevices.getUserMedia) {
+          throw new Error(
+            "Este navegador no permite acceder al micrófono desde esta página."
+          );
+        }
+
+        flujo = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+        let opciones = {};
+        if (MediaRecorder.isTypeSupported("audio/webm;codecs=opus")) {
+          opciones.mimeType = "audio/webm;codecs=opus";
+        }
+
+        grabador = new MediaRecorder(flujo, opciones);
+        fragmentos = [];
+
+        grabador.addEventListener("dataavailable", evento => {
+          if (evento.data && evento.data.size > 0) {
+            fragmentos.push(evento.data);
+          }
+        });
+
+        grabador.addEventListener("stop", async () => {
+          clearInterval(temporizador);
+          flujo.getTracks().forEach(pista => pista.stop());
+
+          estado.textContent = "Preparando la grabación…";
+
+          const blob = new Blob(fragmentos, {
+            type: grabador.mimeType || "audio/webm"
+          });
+
+          const url = URL.createObjectURL(blob);
+          const audio = document.createElement("audio");
+          audio.controls = true;
+          audio.src = url;
+          estado.replaceChildren(
+            document.createTextNode(
+              "Grabación terminada. Escucha tu respuesta antes de enviarla."
+            ),
+            document.createElement("br"),
+            audio
+          );
+
+          const enviar = document.createElement("button");
+          enviar.textContent = "Enviar respuesta";
+          enviar.addEventListener("click", async () => {
+            enviar.disabled = true;
+            estado.appendChild(
+              document.createTextNode(" Preparando el envío…")
+            );
+
+            /*
+             * En el siguiente paso conectaremos este botón con
+             * Google Apps Script para guardar el audio en Drive.
+             * Por ahora, descarga el audio para comprobar la grabación.
+             */
+            const enlace = document.createElement("a");
+            enlace.href = url;
+            enlace.download = "respuesta-oral.webm";
+            enlace.textContent = "Descargar grabación";
+            enlace.style.display = "block";
+            estado.appendChild(enlace);
+
+            estado.appendChild(
+              document.createTextNode(
+                " La grabación se ha realizado correctamente, " +
+                "pero todavía no se ha enviado a Google Drive."
+              )
+            );
+          });
+
+          estado.appendChild(document.createElement("br"));
+          estado.appendChild(enviar);
+          iniciarBtn.disabled = false;
+          detenerBtn.disabled = true;
+        });
+
+        grabador.start();
+        segundosRestantes = 180;
+        mostrarTiempo();
+
+        detenerBtn.disabled = false;
+        estado.textContent = "Grabando. Habla con claridad.";
+
+        temporizador = setInterval(() => {
+          segundosRestantes--;
+          mostrarTiempo();
+
+          if (segundosRestantes <= 0 && grabador.state === "recording") {
+            grabador.stop();
+          }
+        }, 1000);
+
+      } catch (error) {
+        iniciarBtn.disabled = false;
+        estado.textContent =
+          "No se pudo iniciar la grabación: " +
+          error.name + " — " + error.message;
+      }
+    });
+
+    detenerBtn.addEventListener("click", () => {
+      if (grabador && grabador.state === "recording") {
+        grabador.stop();
+        detenerBtn.disabled = true;
+      }
+    });
+  </script>
+</body>
+</html>
