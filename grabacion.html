@@ -3,371 +3,201 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Respuesta oral — Práctica de Matemáticas</title>
+
+  <title>Prueba de grabación</title>
 
   <style>
     body {
-      font-family: Arial, sans-serif;
-      max-width: 700px;
-      margin: 40px auto;
+      font-family: sans-serif;
+      max-width: 600px;
+      margin: 50px auto;
       padding: 20px;
       line-height: 1.5;
-      color: #222;
     }
 
     button {
-      padding: 12px 18px;
-      margin: 8px 5px 8px 0;
+      padding: 12px 20px;
+      margin: 8px 4px 8px 0;
+      font-size: 16px;
       cursor: pointer;
-    }
-
-    button:disabled {
-      cursor: not-allowed;
-      opacity: 0.5;
     }
 
     #estado {
       margin-top: 20px;
-      padding: 12px;
-      background: #f1f1f1;
-      border-radius: 6px;
-      overflow-wrap: anywhere;
-      white-space: pre-wrap;
+      font-weight: bold;
     }
 
-    #cronometro {
-      font-size: 1.5em;
-      font-weight: bold;
+    #resultado {
+      margin-top: 20px;
     }
   </style>
 </head>
 
 <body>
-  <h1>Respuesta oral</h1>
 
-  <p><strong>Pregunta:</strong></p>
+  <h1>Prueba de grabación</h1>
 
-  <p>Decidir razonadamente si la siguiente afirmación es verdadera o falsa:</p>
+  <p>Graba unos segundos y comprueba que el audio se guarda en Drive.</p>
 
-  <blockquote>
-    Si S es una matriz definida positiva, entonces S² es definida positiva.
-  </blockquote>
+  <button id="empezar">Empezar a grabar</button>
+  <button id="detener" disabled>Detener y guardar</button>
 
-  <p>Dispones de un máximo de tres minutos para responder.</p>
+  <p id="estado">Preparado.</p>
 
-  <button id="iniciar">Comenzar grabación</button>
-  <button id="detener" disabled>Terminar grabación</button>
+  <div id="resultado"></div>
 
-  <p id="cronometro">03:00</p>
-
-  <div id="estado">
-    Pulsa «Comenzar grabación» cuando estés preparado.
-  </div>
+  <iframe
+    name="marcoOculto"
+    id="marcoOculto"
+    style="display:none">
+  </iframe>
 
   <script>
-    // URL de la aplicación web de Google Apps Script.
-    const URL_APPS_SCRIPT =
-      'https://script.google.com/a/macros/ucm.es/s/AKfycbwdWcC5Dyoc2ClpzbGpmzMdwo9IR27kNIjJDoue0teXDPcFpMQIAzT1s3Yc0k1zyhCzkQ/exec';
+    const URL_SCRIPT =
+      'https://script.google.com/macros/s/AKfycbxttUSEpmIzyz19BxerSMcD0V4oohdSenJATZBr0sA-_0c4NQb3I53FWqBOvG8RbH-c/exec';
 
-    const iniciarBtn = document.getElementById('iniciar');
-    const detenerBtn = document.getElementById('detener');
+    const botonEmpezar = document.getElementById('empezar');
+    const botonDetener = document.getElementById('detener');
     const estado = document.getElementById('estado');
-    const cronometro = document.getElementById('cronometro');
+    const resultado = document.getElementById('resultado');
 
-    // El identificador se recibe en la dirección:
-    // grabacion.html?id=IDENTIFICADOR
-    const id = new URLSearchParams(window.location.search).get('id');
-
-    let grabador = null;
+    let grabadora;
     let fragmentos = [];
-    let flujo = null;
-    let temporizador = null;
-    let segundosRestantes = 180;
-    let grabacionTerminada = false;
+    let flujo;
 
-    function mostrarTiempo() {
-      const minutos = Math.floor(segundosRestantes / 60);
-      const segundos = segundosRestantes % 60;
-
-      cronometro.textContent =
-        String(minutos).padStart(2, '0') + ':' +
-        String(segundos).padStart(2, '0');
-    }
-
-    function mostrarError(mensaje) {
-      estado.textContent = mensaje;
-    }
-
-    iniciarBtn.addEventListener('click', async () => {
-      iniciarBtn.disabled = true;
-      estado.textContent = 'Solicitando permiso para utilizar el micrófono…';
-
+    botonEmpezar.addEventListener('click', async () => {
       try {
-        if (!navigator.mediaDevices ||
-            !navigator.mediaDevices.getUserMedia) {
-          throw new Error(
-            'El navegador no permite acceder al micrófono desde esta página.'
-          );
-        }
+        resultado.innerHTML = '';
+        estado.textContent = 'Solicitando permiso para usar el micrófono...';
 
         flujo = await navigator.mediaDevices.getUserMedia({
           audio: true
         });
 
-        let opciones = {};
-
-        if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
-          opciones.mimeType = 'audio/webm;codecs=opus';
-        } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
-          opciones.mimeType = 'audio/mp4';
-        } else if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) {
-          opciones.mimeType = 'audio/ogg;codecs=opus';
-        }
-
-        grabador = new MediaRecorder(flujo, opciones);
         fragmentos = [];
-        grabacionTerminada = false;
 
-        grabador.addEventListener('dataavailable', evento => {
-          if (evento.data && evento.data.size > 0) {
+        const tipoPreferido = 'audio/webm;codecs=opus';
+
+        const opciones = MediaRecorder.isTypeSupported(tipoPreferido)
+          ? { mimeType: tipoPreferido }
+          : {};
+
+        grabadora = new MediaRecorder(flujo, opciones);
+
+        grabadora.ondataavailable = evento => {
+          if (evento.data.size > 0) {
             fragmentos.push(evento.data);
           }
-        });
-
-        grabador.addEventListener('stop', () => {
-          clearInterval(temporizador);
-
-          if (flujo) {
-            flujo.getTracks().forEach(pista => pista.stop());
-          }
-
-          grabacionTerminada = true;
-
-          const blob = new Blob(fragmentos, {
-            type: grabador.mimeType || 'audio/webm'
-          });
-
-          mostrarGrabacion(blob);
-        });
-
-        grabador.start();
-
-        segundosRestantes = 180;
-        mostrarTiempo();
-
-        detenerBtn.disabled = false;
-        estado.textContent = 'Grabando. Habla con claridad.';
-
-        temporizador = setInterval(() => {
-          segundosRestantes--;
-          mostrarTiempo();
-
-          if (segundosRestantes <= 0 &&
-              grabador.state === 'recording') {
-            grabador.stop();
-            detenerBtn.disabled = true;
-          }
-        }, 1000);
-
-      } catch (error) {
-        if (flujo) {
-          flujo.getTracks().forEach(pista => pista.stop());
-        }
-
-        iniciarBtn.disabled = false;
-
-        mostrarError(
-          'No se pudo iniciar la grabación: ' +
-          error.name + ' — ' + error.message
-        );
-      }
-    });
-
-    detenerBtn.addEventListener('click', () => {
-      if (grabador && grabador.state === 'recording') {
-        grabador.stop();
-        detenerBtn.disabled = true;
-      }
-    });
-
-    function mostrarGrabacion(blob) {
-      const url = URL.createObjectURL(blob);
-
-      const audio = document.createElement('audio');
-      audio.controls = true;
-      audio.src = url;
-
-      const mensaje = document.createElement('p');
-      mensaje.textContent =
-        'Grabación terminada. Puedes escucharla antes de enviarla.';
-
-      const botonEnviar = document.createElement('button');
-      botonEnviar.textContent = 'Enviar respuesta a Google Drive';
-
-      estado.replaceChildren(
-        mensaje,
-        audio,
-        document.createElement('br'),
-        botonEnviar
-      );
-
-      botonEnviar.addEventListener('click', () => {
-        enviarGrabacion(blob, botonEnviar);
-      });
-    }
-
-    async function enviarGrabacion(blob, botonEnviar) {
-      if (!id) {
-        mostrarError(
-          'Falta el identificador de la práctica. ' +
-          'Debes entrar desde la aplicación principal.'
-        );
-        return;
-      }
-
-      if (!grabacionTerminada) {
-        mostrarError('Primero debes terminar la grabación.');
-        return;
-      }
-
-      botonEnviar.disabled = true;
-
-      estado.textContent = 'Preparando el archivo para enviarlo…';
-
-      console.log('Tamaño del audio:', blob.size);
-      console.log('Formato del audio:', blob.type);
-
-      try {
-        const datos = await new Promise((resolve, reject) => {
-          const lector = new FileReader();
-
-          lector.onload = () => {
-            const resultado = String(lector.result);
-            resolve(resultado.substring(resultado.indexOf(',') + 1));
-          };
-
-          lector.onerror = () => reject(
-            new Error('No se ha podido leer el archivo de audio.')
-          );
-
-          lector.onabort = () => reject(
-            new Error('Se ha cancelado la lectura del audio.')
-          );
-
-          lector.readAsDataURL(blob);
-        });
-
-        console.log(
-          'Audio convertido a base64. Caracteres:',
-          datos.length
-        );
-
-        estado.textContent =
-          'Audio preparado. Intentando enviarlo a Google Apps Script…';
-
-        const mimeType = blob.type.split(';')[0];
-
-        const extension = mimeType === 'audio/mp4'
-          ? 'mp4'
-          : mimeType === 'audio/ogg'
-            ? 'ogg'
-            : 'webm';
-
-        const nombre = 'respuesta-oral.' + extension;
-
-        const formulario = document.createElement('form');
-        formulario.method = 'POST';
-        formulario.action = URL_APPS_SCRIPT;
-        formulario.target = 'marcoRespuesta';
-        formulario.acceptCharset = 'UTF-8';
-        formulario.style.display = 'none';
-
-        const campos = {
-          accion: 'guardarAudio',
-          id: id,
-          nombre: nombre,
-          mimeType: mimeType,
-          base64: datos
         };
 
-        Object.entries(campos).forEach(([nombreCampo, valor]) => {
-          const campo = document.createElement('input');
-          campo.type = 'hidden';
-          campo.name = nombreCampo;
-          campo.value = valor;
-          formulario.appendChild(campo);
-        });
+        grabadora.onstop = guardarGrabacion;
 
-        document.body.appendChild(formulario);
+        grabadora.start();
 
-        estado.textContent =
-          'Enviando la grabación. No cierres esta página…';
+        botonEmpezar.disabled = true;
+        botonDetener.disabled = false;
 
-        // Registrar el listener antes de enviar el formulario,
-        // para no perder una respuesta rápida.
-        const respuestaPromise = new Promise(resolve => {
-          const temporizadorRespuesta = setTimeout(() => {
-            window.removeEventListener('message', recibirRespuesta);
-            resolve({
-              correcto: false,
-              mensaje:
-                'No se ha recibido respuesta de Apps Script en 60 segundos.'
-            });
-          }, 60000);
-
-          function recibirRespuesta(evento) {
-            if (!evento.data ||
-                evento.data.tipo !== 'resultadoGrabacion') {
-              return;
-            }
-
-            clearTimeout(temporizadorRespuesta);
-            window.removeEventListener('message', recibirRespuesta);
-            resolve(evento.data.resultado);
-          }
-
-          window.addEventListener('message', recibirRespuesta);
-        });
-
-        formulario.submit();
-
-        const resultado = await respuestaPromise;
-        formulario.remove();
-
-        if (resultado && resultado.correcto) {
-          estado.textContent =
-            '¡Grabación guardada correctamente en Google Drive! ' +
-            'Puedes cerrar esta página.';
-          iniciarBtn.disabled = true;
-        } else {
-          botonEnviar.disabled = false;
-
-          mostrarError(
-            'No se ha podido guardar la grabación: ' +
-            (resultado && resultado.mensaje
-              ? resultado.mensaje
-              : 'Error desconocido.')
-          );
-        }
+        estado.textContent = 'Grabando...';
 
       } catch (error) {
-        console.error('Error al enviar la grabación:', error);
+        estado.textContent =
+          'No se pudo iniciar la grabación: ' + error.message;
+      }
+    });
 
-        botonEnviar.disabled = false;
+    botonDetener.addEventListener('click', () => {
+      if (grabadora && grabadora.state !== 'inactive') {
+        botonDetener.disabled = true;
+        estado.textContent = 'Preparando el audio...';
 
-        mostrarError(
-          'Error al preparar o enviar el audio: ' +
-          error.message
-        );
+        grabadora.stop();
+        flujo.getTracks().forEach(pista => pista.stop());
+      }
+    });
+
+    async function guardarGrabacion() {
+      try {
+        const tipo = grabadora.mimeType || 'audio/webm';
+
+        const audio = new Blob(fragmentos, {
+          type: tipo
+        });
+
+        const lector = new FileReader();
+
+        lector.onloadend = () => {
+          try {
+            const base64 = lector.result.split(',')[1];
+
+            const datos = {
+              nombre: 'prueba-' + Date.now() + '.webm',
+              mimeType: tipo,
+              base64: base64
+            };
+
+            enviarAudio(datos);
+
+          } catch (error) {
+            estado.textContent =
+              'Error al preparar el audio: ' + error.message;
+            botonEmpezar.disabled = false;
+          }
+        };
+
+        lector.readAsDataURL(audio);
+
+      } catch (error) {
+        estado.textContent =
+          'Error al preparar la grabación: ' + error.message;
+        botonEmpezar.disabled = false;
       }
     }
 
-    // Marco oculto que recibe la respuesta de Apps Script.
-    const marco = document.createElement('iframe');
-    marco.name = 'marcoRespuesta';
-    marco.id = 'marcoRespuesta';
-    marco.style.display = 'none';
-    document.body.appendChild(marco);
+    function enviarAudio(datos) {
+      estado.textContent = 'Enviando el audio a Google Drive...';
+
+      const formulario = document.createElement('form');
+
+      formulario.method = 'POST';
+      formulario.action = URL_SCRIPT;
+      formulario.target = 'marcoOculto';
+
+      const campo = document.createElement('input');
+
+      campo.type = 'hidden';
+      campo.name = 'payload';
+      campo.value = JSON.stringify(datos);
+
+      formulario.appendChild(campo);
+      document.body.appendChild(formulario);
+
+      formulario.submit();
+      formulario.remove();
+    }
+
+    window.addEventListener('message', evento => {
+      const respuesta = evento.data;
+
+      if (!respuesta || typeof respuesta.correcto !== 'boolean') {
+        return;
+      }
+
+      if (respuesta.correcto) {
+        estado.textContent = '¡Grabación guardada correctamente!';
+
+        resultado.innerHTML =
+          '<p><a href="' + respuesta.url +
+          '" target="_blank" rel="noopener">Abrir el audio guardado en Drive</a></p>';
+
+      } else {
+        estado.textContent =
+          'No se pudo guardar el audio: ' + respuesta.mensaje;
+      }
+
+      botonEmpezar.disabled = false;
+      botonDetener.disabled = true;
+    });
   </script>
+
 </body>
 </html>
