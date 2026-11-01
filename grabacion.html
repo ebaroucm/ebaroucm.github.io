@@ -1,203 +1,506 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <title>Prueba de grabación</title>
+  <title>Respuesta oral - Práctica 2</title>
 
   <style>
     body {
-      font-family: sans-serif;
-      max-width: 600px;
-      margin: 50px auto;
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 35px auto;
+      padding: 0 20px;
+      line-height: 1.6;
+      color: #222;
+    }
+
+    h1, h2 {
+      color: #17365d;
+    }
+
+    .panel {
+      margin-top: 24px;
       padding: 20px;
-      line-height: 1.5;
+      border: 1px solid #ddd;
+      border-radius: 8px;
     }
 
     button {
-      padding: 12px 20px;
-      margin: 8px 4px 8px 0;
       font-size: 16px;
+      padding: 10px 16px;
+      margin: 6px 4px 6px 0;
       cursor: pointer;
+      background: #174a7e;
+      color: white;
+      border: 0;
+      border-radius: 4px;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: wait;
+    }
+
+    .reloj {
+      font-size: 28px;
+      font-weight: bold;
+      margin: 20px 0;
     }
 
     #estado {
+      white-space: pre-wrap;
       margin-top: 20px;
-      font-weight: bold;
     }
 
-    #resultado {
-      margin-top: 20px;
+    .aviso {
+      background: #f2f6fb;
+      padding: 12px;
+      border-radius: 5px;
+    }
+
+    iframe {
+      display: none;
     }
   </style>
 </head>
 
+
 <body>
 
-  <h1>Prueba de grabación</h1>
+  <h1>Práctica número 2</h1>
 
-  <p>Graba unos segundos y comprueba que el audio se guarda en Drive.</p>
+  <section class="panel">
 
-  <button id="empezar">Empezar a grabar</button>
-  <button id="detener" disabled>Detener y guardar</button>
+    <h2>Pregunta oral</h2>
 
-  <p id="estado">Preparado.</p>
+    <p>
+      Dispones de un máximo de tres minutos para responder
+      oralmente a la siguiente pregunta:
+    </p>
 
-  <div id="resultado"></div>
+    <p style="font-size: 21px;">
+      Explicar por qué sabíamos que existía la matriz W
+      en el ejercicio 1, sin necesidad de calcularla explícitamente.
+    </p>
 
-  <iframe
-    name="marcoOculto"
-    id="marcoOculto"
-    style="display:none">
-  </iframe>
+    <p class="aviso">
+      Cuando estés preparado, pulsa «Comenzar grabación».
+      El navegador te pedirá permiso para utilizar el micrófono.
+      La grabación terminará automáticamente al cabo de
+      tres minutos.
+    </p>
 
-  <script>
-    const URL_SCRIPT =
-      'https://script.google.com/macros/s/AKfycbxttUSEpmIzyz19BxerSMcD0V4oohdSenJATZBr0sA-_0c4NQb3I53FWqBOvG8RbH-c/exec';
+    <div class="reloj" id="reloj">03:00</div>
 
-    const botonEmpezar = document.getElementById('empezar');
-    const botonDetener = document.getElementById('detener');
-    const estado = document.getElementById('estado');
-    const resultado = document.getElementById('resultado');
+    <button id="botonGrabar" onclick="grabar()">
+      Comenzar grabación
+    </button>
 
-    let grabadora;
-    let fragmentos = [];
-    let flujo;
+    <button id="botonParar" onclick="pararGrabacion()" disabled>
+      Terminar grabación
+    </button>
 
-    botonEmpezar.addEventListener('click', async () => {
-      try {
-        resultado.innerHTML = '';
-        estado.textContent = 'Solicitando permiso para usar el micrófono...';
+    <p id="estado" role="status"></p>
 
-        flujo = await navigator.mediaDevices.getUserMedia({
+  </section>
+
+
+  <!-- Iframe oculto para enviar y recibir la respuesta -->
+
+  <iframe name="marcoEnvio" id="marcoEnvio"></iframe>
+
+
+  <form
+    id="formulario"
+    method="POST"
+    target="marcoEnvio"
+    action="https://script.google.com/macros/s/AKfycbyKJTq6Cij9KIYUl786VmmD4y-qKcrB8UsWRfUy3vlC0mfUv96tmagr8ToVldAd6oG5Cw/exec">
+
+    <input type="hidden" name="payload" id="payload">
+
+  </form>
+
+
+<script>
+
+  const URL_APPS_SCRIPT =
+    'https://script.google.com/macros/s/AKfycbyKJTq6Cij9KIYUl786VmmD4y-qKcrB8UsWRfUy3vlC0mfUv96tmagr8ToVldAd6oG5Cw/exec';
+
+  const MAX_AUDIO_BYTES = 18 * 1024 * 1024;
+  const DURACION_MAXIMA = 180000;
+
+  const parametros = new URLSearchParams(
+    window.location.search
+  );
+
+  const sesion = parametros.get('id');
+
+  let grabador = null;
+  let flujoMicrofono = null;
+  let trozosAudio = [];
+
+  let inicioGrabacion = null;
+  let temporizador = null;
+
+  let audioEnviado = false;
+
+
+  const botonGrabar =
+    document.getElementById('botonGrabar');
+
+  const botonParar =
+    document.getElementById('botonParar');
+
+  const estado =
+    document.getElementById('estado');
+
+  const reloj =
+    document.getElementById('reloj');
+
+
+  // ================================================
+  // COMPROBAR IDENTIFICADOR
+  // ================================================
+
+  if (!sesion) {
+    botonGrabar.disabled = true;
+
+    estado.textContent =
+      'No se ha recibido el identificador de la práctica. ' +
+      'Vuelve a la página de la práctica e inténtalo de nuevo.';
+  }
+
+
+  // ================================================
+  // RECIBIR RESPUESTA DE APPS SCRIPT
+  // ================================================
+
+  window.addEventListener('message', function(event) {
+
+    if (
+      event.source !==
+      document.getElementById('marcoEnvio').contentWindow
+    ) {
+      return;
+    }
+
+    const resultado = event.data;
+
+    if (
+      !resultado ||
+      typeof resultado.correcto !== 'boolean'
+    ) {
+      return;
+    }
+
+    if (resultado.correcto) {
+
+      estado.textContent =
+        'La grabación se ha guardado correctamente en Google Drive. ' +
+        'Has completado la práctica.';
+
+      botonGrabar.disabled = true;
+      botonParar.disabled = true;
+
+    } else {
+
+      estado.textContent =
+        'Error al guardar la grabación: ' +
+        resultado.mensaje;
+
+      botonGrabar.disabled = false;
+      botonParar.disabled = true;
+    }
+  });
+
+
+  // ================================================
+  // FORMATO DEL CRONÓMETRO
+  // ================================================
+
+  function formatoTiempo(ms) {
+
+    const segundos = Math.max(
+      0,
+      Math.ceil(ms / 1000)
+    );
+
+    const minutos = Math.floor(segundos / 60);
+    const resto = segundos % 60;
+
+    return String(minutos).padStart(2, '0') + ':' +
+      String(resto).padStart(2, '0');
+  }
+
+
+  // ================================================
+  // INICIAR GRABACIÓN
+  // ================================================
+
+  async function grabar() {
+
+    if (!sesion) return;
+
+    if (
+      !navigator.mediaDevices ||
+      !navigator.mediaDevices.getUserMedia ||
+      !window.MediaRecorder
+    ) {
+
+      estado.textContent =
+        'Este navegador no permite grabar desde esta página. ' +
+        'Prueba con una versión reciente de Chrome o Firefox.';
+
+      return;
+    }
+
+    botonGrabar.disabled = true;
+
+    estado.textContent =
+      'Solicitando permiso para utilizar el micrófono...';
+
+    try {
+
+      flujoMicrofono =
+        await navigator.mediaDevices.getUserMedia({
           audio: true
         });
 
-        fragmentos = [];
+      let opciones = {};
 
-        const tipoPreferido = 'audio/webm;codecs=opus';
+      if (
+        MediaRecorder.isTypeSupported(
+          'audio/webm;codecs=opus'
+        )
+      ) {
 
-        const opciones = MediaRecorder.isTypeSupported(tipoPreferido)
-          ? { mimeType: tipoPreferido }
-          : {};
+        opciones.mimeType = 'audio/webm;codecs=opus';
 
-        grabadora = new MediaRecorder(flujo, opciones);
+      } else if (
+        MediaRecorder.isTypeSupported('audio/mp4')
+      ) {
 
-        grabadora.ondataavailable = evento => {
-          if (evento.data.size > 0) {
-            fragmentos.push(evento.data);
-          }
-        };
+        opciones.mimeType = 'audio/mp4';
 
-        grabadora.onstop = guardarGrabacion;
+      } else if (
+        MediaRecorder.isTypeSupported(
+          'audio/ogg;codecs=opus'
+        )
+      ) {
 
-        grabadora.start();
+        opciones.mimeType = 'audio/ogg;codecs=opus';
+      }
 
-        botonEmpezar.disabled = true;
-        botonDetener.disabled = false;
+      grabador = new MediaRecorder(
+        flujoMicrofono,
+        opciones
+      );
 
-        estado.textContent = 'Grabando...';
+      trozosAudio = [];
+      audioEnviado = false;
 
-      } catch (error) {
+      grabador.ondataavailable = function(evento) {
+
+        if (evento.data && evento.data.size > 0) {
+          trozosAudio.push(evento.data);
+        }
+      };
+
+      grabador.onerror = function() {
+
         estado.textContent =
-          'No se pudo iniciar la grabación: ' + error.message;
-      }
-    });
+          'Se ha producido un error durante la grabación.';
+      };
 
-    botonDetener.addEventListener('click', () => {
-      if (grabadora && grabadora.state !== 'inactive') {
-        botonDetener.disabled = true;
-        estado.textContent = 'Preparando el audio...';
+      grabador.onstop = prepararAudio;
 
-        grabadora.stop();
-        flujo.getTracks().forEach(pista => pista.stop());
-      }
-    });
+      grabador.start();
 
-    async function guardarGrabacion() {
-      try {
-        const tipo = grabadora.mimeType || 'audio/webm';
+      inicioGrabacion = Date.now();
 
-        const audio = new Blob(fragmentos, {
-          type: tipo
-        });
+      botonParar.disabled = false;
 
-        const lector = new FileReader();
+      estado.textContent =
+        'Grabando. Habla ahora.';
 
-        lector.onloadend = () => {
-          try {
-            const base64 = lector.result.split(',')[1];
+      actualizarReloj();
 
-            const datos = {
-              nombre: 'prueba-' + Date.now() + '.webm',
-              mimeType: tipo,
-              base64: base64
-            };
+      temporizador = setInterval(
+        actualizarReloj,
+        250
+      );
 
-            enviarAudio(datos);
+    } catch (error) {
 
-          } catch (error) {
-            estado.textContent =
-              'Error al preparar el audio: ' + error.message;
-            botonEmpezar.disabled = false;
-          }
-        };
+      detenerMicrofono();
 
-        lector.readAsDataURL(audio);
+      botonGrabar.disabled = false;
 
-      } catch (error) {
-        estado.textContent =
-          'Error al preparar la grabación: ' + error.message;
-        botonEmpezar.disabled = false;
-      }
+      estado.textContent =
+        'No se ha podido acceder al micrófono. ' +
+        'Comprueba los permisos del navegador e inténtalo de nuevo.';
+    }
+  }
+
+
+  // ================================================
+  // CRONÓMETRO DE TRES MINUTOS
+  // ================================================
+
+  function actualizarReloj() {
+
+    if (!inicioGrabacion) return;
+
+    const restante =
+      DURACION_MAXIMA -
+      (Date.now() - inicioGrabacion);
+
+    reloj.textContent =
+      formatoTiempo(restante);
+
+    if (restante <= 0) {
+      pararGrabacion();
+    }
+  }
+
+
+  // ================================================
+  // TERMINAR GRABACIÓN
+  // ================================================
+
+  function pararGrabacion() {
+
+    if (
+      !grabador ||
+      grabador.state === 'inactive'
+    ) {
+      return;
     }
 
-    function enviarAudio(datos) {
-      estado.textContent = 'Enviando el audio a Google Drive...';
+    botonParar.disabled = true;
 
-      const formulario = document.createElement('form');
+    clearInterval(temporizador);
 
-      formulario.method = 'POST';
-      formulario.action = URL_SCRIPT;
-      formulario.target = 'marcoOculto';
+    estado.textContent =
+      'Grabación finalizada. Preparando el envío...';
 
-      const campo = document.createElement('input');
+    grabador.stop();
 
-      campo.type = 'hidden';
-      campo.name = 'payload';
-      campo.value = JSON.stringify(datos);
+    detenerMicrofono();
+  }
 
-      formulario.appendChild(campo);
-      document.body.appendChild(formulario);
 
-      formulario.submit();
-      formulario.remove();
+  function detenerMicrofono() {
+
+    if (flujoMicrofono) {
+
+      flujoMicrofono.getTracks().forEach(
+        function(pista) {
+          pista.stop();
+        }
+      );
+
+      flujoMicrofono = null;
+    }
+  }
+
+
+  // ================================================
+  // PREPARAR EL AUDIO
+  // ================================================
+
+  function prepararAudio() {
+
+    if (audioEnviado) return;
+
+    audioEnviado = true;
+
+    const blob = new Blob(
+      trozosAudio,
+      {
+        type: grabador.mimeType || 'audio/webm'
+      }
+    );
+
+    if (blob.size === 0) {
+
+      estado.textContent =
+        'La grabación está vacía. Inténtalo de nuevo.';
+
+      botonGrabar.disabled = false;
+      audioEnviado = false;
+
+      return;
     }
 
-    window.addEventListener('message', evento => {
-      const respuesta = evento.data;
+    if (blob.size > MAX_AUDIO_BYTES) {
 
-      if (!respuesta || typeof respuesta.correcto !== 'boolean') {
-        return;
-      }
+      estado.textContent =
+        'El audio supera los 18 MB. Intenta grabar de nuevo.';
 
-      if (respuesta.correcto) {
-        estado.textContent = '¡Grabación guardada correctamente!';
+      botonGrabar.disabled = false;
+      audioEnviado = false;
 
-        resultado.innerHTML =
-          '<p><a href="' + respuesta.url +
-          '" target="_blank" rel="noopener">Abrir el audio guardado en Drive</a></p>';
+      return;
+    }
 
-      } else {
-        estado.textContent =
-          'No se pudo guardar el audio: ' + respuesta.mensaje;
-      }
+    enviarAudio(blob);
+  }
 
-      botonEmpezar.disabled = false;
-      botonDetener.disabled = true;
-    });
-  </script>
+
+  // ================================================
+  // ENVIAR AUDIO A GOOGLE DRIVE
+  // ================================================
+
+  function enviarAudio(blob) {
+
+    estado.textContent =
+      'Enviando la grabación a Google Drive...';
+
+    const lector = new FileReader();
+
+    lector.onload = function() {
+
+      const base64 =
+        lector.result.split(',')[1];
+
+      const mimeType =
+        blob.type.split(';')[0];
+
+      const datos = {
+        id: sesion,
+        nombre: 'respuesta',
+        mimeType: mimeType,
+        base64: base64
+      };
+
+      document.getElementById('payload').value =
+        JSON.stringify(datos);
+
+      document.getElementById('formulario').action =
+        URL_APPS_SCRIPT;
+
+      document.getElementById('formulario').submit();
+    };
+
+
+    lector.onerror = function() {
+
+      estado.textContent =
+        'No se ha podido preparar el archivo de audio.';
+
+      botonGrabar.disabled = false;
+      audioEnviado = false;
+    };
+
+
+    lector.readAsDataURL(blob);
+  }
+
+</script>
 
 </body>
 </html>
