@@ -1,43 +1,54 @@
 <!DOCTYPE html>
-<html lang="es<!DOCTYPE html>
 <html lang="es">
-
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <title>Respuesta oral - Práctica 2</title>
+  <title>Grabación de la respuesta</title>
 
   <style>
     body {
       font-family: Arial, sans-serif;
-      max-width: 800px;
-      margin: 35px auto;
-      padding: 0 20px;
-      line-height: 1.6;
+      max-width: 700px;
+      margin: 40px auto;
+      padding: 20px;
+      line-height: 1.5;
       color: #222;
     }
 
-    h1, h2 {
-      color: #17365d;
+    h1 {
+      font-size: 25px;
+      margin-bottom: 25px;
     }
 
-    .panel {
-      margin-top: 24px;
+    .pregunta {
+      background: #f1f3f4;
       padding: 20px;
-      border: 1px solid #ddd;
       border-radius: 8px;
+      margin-bottom: 25px;
+      font-size: 18px;
+    }
+
+    #temporizador {
+      font-size: 38px;
+      font-weight: bold;
+      text-align: center;
+      margin: 25px 0;
+    }
+
+    .botones {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      margin: 25px 0;
     }
 
     button {
+      padding: 13px 22px;
       font-size: 16px;
-      padding: 10px 16px;
-      margin: 6px 4px 6px 0;
+      border: none;
+      border-radius: 6px;
       cursor: pointer;
-      background: #174a7e;
-      color: white;
-      border: 0;
-      border-radius: 4px;
     }
 
     button:disabled {
@@ -45,584 +56,546 @@
       cursor: not-allowed;
     }
 
-    .reloj {
-      font-size: 28px;
-      font-weight: bold;
-      margin: 20px 0;
+    #botonGrabar {
+      background: #188038;
+      color: white;
+    }
+
+    #botonParar {
+      background: #d93025;
+      color: white;
     }
 
     #estado {
-      white-space: pre-wrap;
-      margin-top: 20px;
-      padding: 12px;
-      border-radius: 5px;
+      margin-top: 25px;
+      padding: 15px;
+      border-radius: 6px;
+      white-space: pre-line;
+      text-align: center;
+    }
+
+    .correcto {
+      background: #e6f4ea;
+      color: #137333;
+    }
+
+    .error {
+      background: #fce8e6;
+      color: #c5221f;
     }
 
     .aviso {
-      background: #f2f6fb;
-      padding: 12px;
-      border-radius: 5px;
+      background: #fef7e0;
+      color: #8a5a00;
     }
 
-    iframe {
-      display: none;
+    .informacion {
+      color: #666;
+      font-size: 14px;
+      text-align: center;
+    }
+
+    audio {
+      display: block;
+      width: 100%;
+      margin-top: 20px;
     }
   </style>
 </head>
 
-
 <body>
 
-  <h1>Práctica número 2</h1>
+  <h1>Grabación de la respuesta oral</h1>
 
-  <section class="panel">
-
-    <h2>Pregunta oral</h2>
-
+  <div class="pregunta">
+    <strong>Pregunta:</strong>
     <p>
-      Dispones de un máximo de tres minutos para responder
-      oralmente a la siguiente pregunta:
+      Explicar por qué sabíamos que existía la matriz W en el
+      ejercicio 1, sin necesidad de calcularla explícitamente.
     </p>
+  </div>
 
-    <p style="font-size: 21px;">
-      Explicar por qué sabíamos que existía la matriz W
-      en el ejercicio 1, sin necesidad de calcularla explícitamente.
-    </p>
+  <p>
+    Dispones de un máximo de 3 minutos para grabar tu respuesta.
+  </p>
 
-    <p class="aviso">
-      Cuando estés preparado, pulsa «Comenzar grabación».
-      El navegador te pedirá permiso para utilizar el micrófono.
-      La grabación terminará automáticamente al cabo de
-      tres minutos.
-    </p>
+  <div id="temporizador">03:00</div>
 
-    <div class="reloj" id="reloj">03:00</div>
-
-    <button id="botonGrabar" onclick="grabar()">
+  <div class="botones">
+    <button id="botonGrabar">
       Comenzar grabación
     </button>
 
-    <button id="botonParar" onclick="pararGrabacion()" disabled>
+    <button id="botonParar" disabled>
       Terminar grabación
     </button>
+  </div>
 
-    <p id="estado" role="status" aria-live="polite"></p>
+  <p class="informacion">
+    No cierres esta página hasta que aparezca el mensaje
+    de confirmación de entrega.
+  </p>
 
-  </section>
+  <div id="estado"></div>
 
+  <audio id="reproductor" controls style="display:none"></audio>
 
-  <!-- Iframe oculto para enviar y recibir la respuesta -->
-
-  <iframe name="marcoEnvio" id="marcoEnvio"></iframe>
-
+  <!-- Formulario oculto para enviar el audio a Apps Script -->
+  <iframe
+    name="marcoEnvio"
+    id="marcoEnvio"
+    style="display:none">
+  </iframe>
 
   <form
     id="formulario"
     method="POST"
     target="marcoEnvio"
-    action="https://script.google.com/macros/s/AKfycby277SkTkB9Z3AI0qA84iDUUfK2pFFNI3t6JZZ7ZX0fDBHoeuU9GzaGPQwTduG-TV1h/exec">
+    style="display:none">
 
-    <input type="hidden" name="payload" id="payload">
+    <input
+      type="hidden"
+      name="payload"
+      id="payload">
 
   </form>
 
 
-<script>
+  <script>
 
-  const URL_APPS_SCRIPT =
-    'https://script.google.com/macros/s/AKfycby277SkTkB9Z3AI0qA84iDUUfK2pFFNI3t6JZZ7ZX0fDBHoeuU9GzaGPQwTduG-TV1h/exec';
+    // =====================================================
+    // CONFIGURACIÓN
+    // =====================================================
 
-  const MAX_AUDIO_BYTES = 18 * 1024 * 1024;
-  const DURACION_MAXIMA = 180000;
-  const TIEMPO_MAXIMO_ENVIO = 30000;
+    const URL_APPS_SCRIPT =
+      'https://script.google.com/macros/s/AKfycby277SkTkB9Z3AI0qA84iDUUfK2pFFNI3t6JZZ7ZX0fDBHoeuU9GzaGPQwTduG-TV1h/exec';
 
-  const parametros = new URLSearchParams(
-    window.location.search
-  );
+    const MAX_AUDIO_BYTES = 18 * 1024 * 1024;
 
-  const sesion = parametros.get('id');
+    const DURACION_MAXIMA = 180000;
 
-  let grabador = null;
-  let flujoMicrofono = null;
-  let trozosAudio = [];
-
-  let inicioGrabacion = null;
-  let temporizador = null;
-  let tiempoEspera = null;
-
-  let audioEnviado = false;
-  let envioEnCurso = false;
-  let entregaConfirmada = false;
+    const sesion = new URLSearchParams(
+      window.location.search
+    ).get('id');
 
 
-  const botonGrabar =
-    document.getElementById('botonGrabar');
+    // =====================================================
+    // ELEMENTOS
+    // =====================================================
 
-  const botonParar =
-    document.getElementById('botonParar');
+    const botonGrabar =
+      document.getElementById('botonGrabar');
 
-  const estado =
-    document.getElementById('estado');
+    const botonParar =
+      document.getElementById('botonParar');
 
-  const reloj =
-    document.getElementById('reloj');
+    const temporizador =
+      document.getElementById('temporizador');
 
-  const marco =
-    document.getElementById('marcoEnvio');
+    const estado =
+      document.getElementById('estado');
 
+    const reproductor =
+      document.getElementById('reproductor');
 
-  // ================================================
-  // MOSTRAR MENSAJES
-  // ================================================
-
-  function mostrarEstado(texto, tipo) {
-
-    estado.textContent = texto;
-
-    if (tipo === 'correcto') {
-      estado.style.color = '#137333';
-      estado.style.background = '#e6f4ea';
-
-    } else if (tipo === 'error') {
-      estado.style.color = '#b00020';
-      estado.style.background = '#fce8e6';
-
-    } else if (tipo === 'aviso') {
-      estado.style.color = '#b06000';
-      estado.style.background = '#fff4e5';
-
-    } else {
-      estado.style.color = '#222';
-      estado.style.background = '#f2f6fb';
-    }
-  }
+    const formulario =
+      document.getElementById('formulario');
 
 
-  // ================================================
-  // COMPROBAR IDENTIFICADOR
-  // ================================================
+    // =====================================================
+    // VARIABLES
+    // =====================================================
 
-  if (!sesion) {
+    let grabador = null;
 
-    botonGrabar.disabled = true;
+    let flujoAudio = null;
 
-    mostrarEstado(
-      'No se ha recibido el identificador de la práctica. ' +
-      'Vuelve a la página de la práctica e inténtalo de nuevo.',
-      'error'
-    );
-  }
+    let fragmentos = [];
+
+    let temporizadorGrabacion = null;
+
+    let tiempoInicio = null;
+
+    let entregaConfirmada = false;
+
+    let envioEnCurso = false;
+
+    let intervaloConfirmacion = null;
+
+    let tiempoEspera = null;
 
 
-  // ================================================
-  // RECIBIR RESPUESTA DE APPS SCRIPT
-  // ================================================
+    // =====================================================
+    // COMPROBAR SESIÓN
+    // =====================================================
 
-  window.addEventListener('message', function(event) {
-
-    const resultado = event.data;
-
-    if (
-      !resultado ||
-      typeof resultado.correcto !== 'boolean'
-    ) {
-      return;
-    }
-
-    // Ignorar mensajes que no procedan del iframe de envío.
-    if (event.source !== marco.contentWindow) {
-      return;
-    }
-
-    clearTimeout(tiempoEspera);
-
-    envioEnCurso = false;
-
-    if (resultado.correcto) {
-
-      entregaConfirmada = true;
+    if (!sesion) {
 
       mostrarEstado(
-        '¡GRABACIÓN ENTREGADA CORRECTAMENTE!\n\n' +
-        'Tu audio está guardado en Google Drive. ' +
-        'Has completado la práctica. Ya puedes cerrar esta página.',
-        'correcto'
+        'No se ha encontrado el identificador de la sesión.',
+        'error'
       );
 
       botonGrabar.disabled = true;
-      botonParar.disabled = true;
+    }
 
-    } else {
 
-      audioEnviado = false;
+    // =====================================================
+    // MOSTRAR MENSAJES
+    // =====================================================
 
-      mostrarEstado(
-        'No se ha podido guardar la grabación:\n\n' +
-        resultado.mensaje +
-        '\n\nPuedes volver a intentarlo.',
-        'error'
+    function mostrarEstado(mensaje, tipo) {
+
+      estado.textContent = mensaje;
+
+      estado.className = tipo || '';
+    }
+
+
+    // =====================================================
+    // TEMPORIZADOR
+    // =====================================================
+
+    function actualizarTemporizador() {
+
+      const transcurrido = Date.now() - tiempoInicio;
+
+      const restante = Math.max(
+        0,
+        DURACION_MAXIMA - transcurrido
       );
 
-      botonGrabar.disabled = false;
-      botonParar.disabled = true;
-    }
-  });
+      const segundos = Math.ceil(restante / 1000);
 
+      const minutos = Math.floor(segundos / 60);
 
-  // ================================================
-  // FORMATO DEL CRONÓMETRO
-  // ================================================
+      const segundosRestantes = segundos % 60;
 
-  function formatoTiempo(ms) {
+      temporizador.textContent =
+        String(minutos).padStart(2, '0') + ':' +
+        String(segundosRestantes).padStart(2, '0');
 
-    const segundos = Math.max(
-      0,
-      Math.ceil(ms / 1000)
-    );
-
-    const minutos = Math.floor(segundos / 60);
-    const resto = segundos % 60;
-
-    return String(minutos).padStart(2, '0') + ':' +
-      String(resto).padStart(2, '0');
-  }
-
-
-  // ================================================
-  // INICIAR GRABACIÓN
-  // ================================================
-
-  async function grabar() {
-
-    if (!sesion || entregaConfirmada || envioEnCurso) {
-      return;
-    }
-
-    if (
-      !navigator.mediaDevices ||
-      !navigator.mediaDevices.getUserMedia ||
-      !window.MediaRecorder
-    ) {
-
-      mostrarEstado(
-        'Este navegador no permite grabar desde esta página. ' +
-        'Prueba con una versión reciente de Chrome o Firefox.',
-        'error'
-      );
-
-      return;
-    }
-
-    botonGrabar.disabled = true;
-
-    mostrarEstado(
-      'Solicitando permiso para utilizar el micrófono...'
-    );
-
-    try {
-
-      flujoMicrofono =
-        await navigator.mediaDevices.getUserMedia({
-          audio: true
-        });
-
-      let opciones = {};
-
-      if (
-        MediaRecorder.isTypeSupported(
-          'audio/webm;codecs=opus'
-        )
-      ) {
-
-        opciones.mimeType = 'audio/webm;codecs=opus';
-
-      } else if (
-        MediaRecorder.isTypeSupported('audio/mp4')
-      ) {
-
-        opciones.mimeType = 'audio/mp4';
-
-      } else if (
-        MediaRecorder.isTypeSupported(
-          'audio/ogg;codecs=opus'
-        )
-      ) {
-
-        opciones.mimeType = 'audio/ogg;codecs=opus';
+      if (restante <= 0) {
+        pararGrabacion();
       }
-
-      grabador = new MediaRecorder(
-        flujoMicrofono,
-        opciones
-      );
-
-      trozosAudio = [];
-      audioEnviado = false;
-
-      grabador.ondataavailable = function(evento) {
-
-        if (evento.data && evento.data.size > 0) {
-          trozosAudio.push(evento.data);
-        }
-      };
-
-      grabador.onerror = function() {
-
-        mostrarEstado(
-          'Se ha producido un error durante la grabación.',
-          'error'
-        );
-
-        detenerMicrofono();
-        botonGrabar.disabled = false;
-        botonParar.disabled = true;
-      };
-
-      grabador.onstop = prepararAudio;
-
-      grabador.start();
-
-      inicioGrabacion = Date.now();
-
-      botonParar.disabled = false;
-
-      mostrarEstado('Grabando. Habla ahora.');
-
-      actualizarReloj();
-
-      temporizador = setInterval(
-        actualizarReloj,
-        250
-      );
-
-    } catch (error) {
-
-      detenerMicrofono();
-
-      botonGrabar.disabled = false;
-
-      mostrarEstado(
-        'No se ha podido acceder al micrófono. ' +
-        'Comprueba los permisos del navegador e inténtalo de nuevo.',
-        'error'
-      );
-    }
-  }
-
-
-  // ================================================
-  // CRONÓMETRO DE TRES MINUTOS
-  // ================================================
-
-  function actualizarReloj() {
-
-    if (!inicioGrabacion) return;
-
-    const restante =
-      DURACION_MAXIMA -
-      (Date.now() - inicioGrabacion);
-
-    reloj.textContent =
-      formatoTiempo(restante);
-
-    if (restante <= 0) {
-      pararGrabacion();
-    }
-  }
-
-
-  // ================================================
-  // TERMINAR GRABACIÓN
-  // ================================================
-
-  function pararGrabacion() {
-
-    if (
-      !grabador ||
-      grabador.state === 'inactive'
-    ) {
-      return;
     }
 
-    botonParar.disabled = true;
 
-    clearInterval(temporizador);
+    // =====================================================
+    // COMENZAR GRABACIÓN
+    // =====================================================
 
-    mostrarEstado(
-      'Grabación finalizada. Preparando el envío...'
-    );
-
-    grabador.stop();
-
-    detenerMicrofono();
-  }
-
-
-  function detenerMicrofono() {
-
-    if (flujoMicrofono) {
-
-      flujoMicrofono.getTracks().forEach(
-        function(pista) {
-          pista.stop();
-        }
-      );
-
-      flujoMicrofono = null;
-    }
-  }
-
-
-  // ================================================
-  // PREPARAR EL AUDIO
-  // ================================================
-
-  function prepararAudio() {
-
-    if (audioEnviado) return;
-
-    const blob = new Blob(
-      trozosAudio,
-      {
-        type: grabador.mimeType || 'audio/webm'
-      }
-    );
-
-    if (blob.size === 0) {
-
-      mostrarEstado(
-        'La grabación está vacía. Inténtalo de nuevo.',
-        'error'
-      );
-
-      botonGrabar.disabled = false;
-      audioEnviado = false;
-
-      return;
-    }
-
-    if (blob.size > MAX_AUDIO_BYTES) {
-
-      mostrarEstado(
-        'El audio supera los 18 MB. Intenta grabar de nuevo.',
-        'error'
-      );
-
-      botonGrabar.disabled = false;
-      audioEnviado = false;
-
-      return;
-    }
-
-    audioEnviado = true;
-
-    enviarAudio(blob);
-  }
-
-
-  // ================================================
-  // ENVIAR AUDIO A GOOGLE DRIVE
-  // ================================================
-
-  function enviarAudio(blob) {
-
-    mostrarEstado(
-      'Preparando la grabación para enviarla a Google Drive...'
-    );
-
-    const lector = new FileReader();
-
-    lector.onload = function() {
-
-      const base64 =
-        lector.result.split(',')[1];
-
-      const mimeType =
-        blob.type.split(';')[0];
-
-      const datos = {
-        id: sesion,
-        nombre: 'respuesta',
-        mimeType: mimeType,
-        base64: base64
-      };
-
-      document.getElementById('payload').value =
-        JSON.stringify(datos);
-
-      document.getElementById('formulario').action =
-        URL_APPS_SCRIPT;
-
-      envioEnCurso = true;
-
-      botonGrabar.disabled = true;
-      botonParar.disabled = true;
-
-      mostrarEstado(
-        'Enviando la grabación a Google Drive. ' +
-        'No cierres esta página...'
-      );
-
-      // Si no llega confirmación en 30 segundos,
-      // avisamos al alumno sin afirmar que haya fallado.
-      clearTimeout(tiempoEspera);
-
-      tiempoEspera = setTimeout(function() {
-
-        if (!envioEnCurso || entregaConfirmada) {
-          return;
-        }
-
-        envioEnCurso = false;
-
-        mostrarEstado(
-          'No hemos recibido confirmación del servidor.\n\n' +
-          'Es posible que la grabación se haya guardado, ' +
-          'pero no podemos asegurarlo desde esta página.\n\n' +
-          'No vuelvas a enviarla todavía. Consulta al profesor.',
-          'aviso'
-        );
-
-      }, TIEMPO_MAXIMO_ENVIO);
+    async function comenzarGrabacion() {
 
       try {
 
-        document.getElementById('formulario').submit();
+        if (!navigator.mediaDevices ||
+            !navigator.mediaDevices.getUserMedia) {
+
+          throw new Error(
+            'Tu navegador no permite acceder al micrófono.'
+          );
+        }
+
+        flujoAudio = await navigator.mediaDevices.getUserMedia({
+          audio: true
+        });
+
+        fragmentos = [];
+
+        let opciones = {};
+
+        if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+
+          opciones.mimeType = 'audio/webm;codecs=opus';
+
+        } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+
+          opciones.mimeType = 'audio/mp4';
+
+        } else if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) {
+
+          opciones.mimeType = 'audio/ogg;codecs=opus';
+        }
+
+        grabador = new MediaRecorder(
+          flujoAudio,
+          opciones
+        );
+
+        grabador.ondataavailable = function(evento) {
+
+          if (evento.data && evento.data.size > 0) {
+            fragmentos.push(evento.data);
+          }
+        };
+
+        grabador.onstop = function() {
+
+          flujoAudio.getTracks().forEach(
+            pista => pista.stop()
+          );
+
+          prepararAudio();
+        };
+
+        grabador.start();
+
+        tiempoInicio = Date.now();
+
+        botonGrabar.disabled = true;
+        botonParar.disabled = false;
+
+        mostrarEstado(
+          'Grabación en curso...',
+          ''
+        );
+
+        actualizarTemporizador();
+
+        temporizadorGrabacion = setInterval(
+          actualizarTemporizador,
+          250
+        );
 
       } catch (error) {
 
-        clearTimeout(tiempoEspera);
+        mostrarEstado(
+          'No se ha podido iniciar la grabación:\n' +
+          error.message,
+          'error'
+        );
+      }
+    }
 
-        envioEnCurso = false;
-        audioEnviado = false;
+
+    // =====================================================
+    // PARAR GRABACIÓN
+    // =====================================================
+
+    function pararGrabacion() {
+
+      if (!grabador || grabador.state !== 'recording') {
+        return;
+      }
+
+      clearInterval(temporizadorGrabacion);
+
+      botonParar.disabled = true;
+
+      mostrarEstado(
+        'Preparando la grabación...',
+        ''
+      );
+
+      grabador.stop();
+    }
+
+
+    // =====================================================
+    // PREPARAR AUDIO
+    // =====================================================
+
+    function prepararAudio() {
+
+      const tipo = grabador.mimeType || 'audio/webm';
+
+      const blob = new Blob(
+        fragmentos,
+        { type: tipo }
+      );
+
+      if (blob.size === 0) {
 
         mostrarEstado(
-          'No se ha podido enviar la grabación: ' +
-          error.message,
+          'La grabación está vacía. Debes volver a intentarlo.',
           'error'
         );
 
         botonGrabar.disabled = false;
+        return;
+      }
+
+      if (blob.size > MAX_AUDIO_BYTES) {
+
+        mostrarEstado(
+          'La grabación supera los 18 MB permitidos.',
+          'error'
+        );
+
+        botonGrabar.disabled = false;
+        return;
+      }
+
+      reproductor.src = URL.createObjectURL(blob);
+      reproductor.style.display = 'block';
+
+      enviarAudio(blob);
+    }
+
+
+    // =====================================================
+    // ENVIAR AUDIO A GOOGLE DRIVE
+    // =====================================================
+
+    function enviarAudio(blob) {
+
+      mostrarEstado(
+        'Enviando la grabación a Google Drive...',
+        ''
+      );
+
+      const lector = new FileReader();
+
+      lector.onloadend = function() {
+
+        const base64 = lector.result.split(',')[1];
+
+        const datos = {
+          id: sesion,
+          nombre: 'respuesta',
+          mimeType: blob.type.split(';')[0],
+          base64: base64
+        };
+
+        document.getElementById('payload').value =
+          JSON.stringify(datos);
+
+        formulario.action = URL_APPS_SCRIPT;
+
+        formulario.submit();
+
+        iniciarConfirmacion();
+      };
+
+      lector.onerror = function() {
+
+        mostrarEstado(
+          'No se ha podido preparar el archivo de audio.',
+          'error'
+        );
+
+        botonGrabar.disabled = false;
+      };
+
+      lector.readAsDataURL(blob);
+    }
+
+
+    // =====================================================
+    // CONFIRMAR ENTREGA MEDIANTE CONSULTAS A LA HOJA
+    // =====================================================
+
+    window.respuestaGrabacion = function(resultado) {
+
+      if (!envioEnCurso || !resultado) {
+        return;
+      }
+
+      if (resultado.correcto) {
+
+        clearInterval(intervaloConfirmacion);
+        clearTimeout(tiempoEspera);
+
+        envioEnCurso = false;
+
+        entregaConfirmada = true;
+
+        mostrarEstado(
+          '¡GRABACIÓN ENTREGADA CORRECTAMENTE!\n\n' +
+          'Tu audio está guardado en Google Drive. ' +
+          'Has completado la práctica. Ya puedes cerrar esta página.',
+          'correcto'
+        );
+
+        botonGrabar.disabled = true;
+        botonParar.disabled = true;
+
+      } else if (!resultado.pendiente) {
+
+        clearInterval(intervaloConfirmacion);
+        clearTimeout(tiempoEspera);
+
+        envioEnCurso = false;
+
+        mostrarEstado(
+          'No se ha podido comprobar la entrega:\n' +
+          resultado.mensaje,
+          'error'
+        );
       }
     };
 
 
-    lector.onerror = function() {
+    function consultarEntrega() {
 
-      mostrarEstado(
-        'No se ha podido preparar el archivo de audio.',
-        'error'
+      const script = document.createElement('script');
+
+      script.src =
+        URL_APPS_SCRIPT +
+        '?estado=' + encodeURIComponent(sesion) +
+        '&callback=respuestaGrabacion' +
+        '&t=' + Date.now();
+
+      script.onerror = function() {
+        script.remove();
+      };
+
+      script.onload = function() {
+        script.remove();
+      };
+
+      document.body.appendChild(script);
+    }
+
+
+    function iniciarConfirmacion() {
+
+      envioEnCurso = true;
+
+      consultarEntrega();
+
+      intervaloConfirmacion = setInterval(
+        consultarEntrega,
+        2000
       );
 
-      botonGrabar.disabled = false;
-      audioEnviado = false;
-    };
+      tiempoEspera = setTimeout(function() {
+
+        if (!envioEnCurso) {
+          return;
+        }
+
+        clearInterval(intervaloConfirmacion);
+
+        envioEnCurso = false;
+
+        mostrarEstado(
+          'Todavía no hemos podido confirmar la entrega.\n\n' +
+          'Comprueba con el profesor que tu grabación aparece registrada. ' +
+          'No vuelvas a enviarla sin consultarlo.',
+          'aviso'
+        );
+
+      }, 90000);
+    }
 
 
-    lector.readAsDataURL(blob);
-  }
+    // =====================================================
+    // EVENTOS
+    // =====================================================
 
-</script>
+    botonGrabar.addEventListener(
+      'click',
+      comenzarGrabacion
+    );
+
+    botonParar.addEventListener(
+      'click',
+      pararGrabacion
+    );
+
+  </script>
 
 </body>
 </html>
